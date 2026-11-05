@@ -1,8 +1,9 @@
 name: FlorisBoard CI
 
 on:
+  workflow_dispatch:
   push:
-    branches: [ main ]
+    branches: [ main, stable1 ]
     paths-ignore:
       - ".github/ISSUE_TEMPLATE/**"
       - ".github/PULL_REQUEST_TEMPLATE.md"
