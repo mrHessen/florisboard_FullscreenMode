@@ -439,6 +439,7 @@ class FlorisImeService : LifecycleInputMethodService() {
      //   if (config.orientation != Configuration.ORIENTATION_LANDSCAPE) {
      //       return false
      //   }
+        // 1
         return when (prefs.keyboard.landscapeInputUiMode.get()) {
             LandscapeInputUiMode.DYNAMICALLY_SHOW -> super.onEvaluateFullscreenMode()
             LandscapeInputUiMode.NEVER_SHOW -> false
