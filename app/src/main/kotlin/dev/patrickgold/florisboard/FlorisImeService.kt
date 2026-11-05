@@ -40,6 +40,7 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.inline.InlinePresentationSpec
 import androidx.annotation.RequiresApi
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -129,19 +130,8 @@ import org.florisboard.lib.snygg.ui.SnyggSurfaceView
 import org.florisboard.lib.snygg.ui.SnyggText
 import org.florisboard.lib.snygg.ui.rememberSnyggThemeQuery
 
-/**
- * Global weak reference for the [FlorisImeService] class. This is needed as certain actions (request hide, switch to
- * another input method, getting the editor instance / input connection, etc.) can only be performed by an IME
- * service class and no context-bound managers. This reference is exclusively used by the companion helper methods
- * of [FlorisImeService], which provide a safe and memory-leak-free way of performing certain actions on the Floris
- * input method service instance.
- */
 private var FlorisImeServiceReference = WeakReference<FlorisImeService?>(null)
 
-/**
- * Core class responsible for linking together all managers and UI compose-ables to provide an IME service. Sets
- * up the window and context to be lifecycle-aware, so LiveData and Jetpack Compose can be used without issues.
- */
 class FlorisImeService : LifecycleInputMethodService() {
     companion object {
         private val InlineSuggestionUiSmallestSize = Size(0, 0)
@@ -155,9 +145,6 @@ class FlorisImeService : LifecycleInputMethodService() {
             return FlorisImeServiceReference.get()?.inputFeedbackController
         }
 
-        /**
-         * Hides the IME and launches [FlorisAppActivity].
-         */
         fun launchSettings() {
             val ims = FlorisImeServiceReference.get() ?: return
             ims.requestHideSelf(0)
@@ -296,31 +283,25 @@ class FlorisImeService : LifecycleInputMethodService() {
         prefs.physicalKeyboard.showOnScreenKeyboard.asFlow().collectIn(lifecycleScope) {
             updateInputViewShown()
         }
-        @Suppress("DEPRECATION") // We do not retrieve the wallpaper but only listen to changes
+        @Suppress("DEPRECATION")
         registerReceiver(wallpaperChangeReceiver, IntentFilter(Intent.ACTION_WALLPAPER_CHANGED))
     }
 
     override fun onCreateInputView(): View {
         super.installViewTreeOwners()
-        // Instantiate and install bottom sheet host UI view
         val bottomSheetView = FlorisBottomSheetHostUiView()
         window.window!!.findViewById<ViewGroup>(android.R.id.content).addView(bottomSheetView)
-        // Instantiate and return input view
         val composeView = ComposeInputView()
         inputWindowView = composeView
         return composeView
     }
 
     override fun onCreateCandidatesView(): View? {
-        // Disable the default candidates view
         return null
     }
 
     override fun onCreateExtractTextView(): View {
         super.installViewTreeOwners()
-        // Consider adding a fallback to the default extract edit layout if user reports come
-        // that this causes a crash, especially if the device manufacturer of the user device
-        // is a known one to break AOSP standards...
         val defaultExtractView = super.onCreateExtractTextView()
         if (defaultExtractView == null || defaultExtractView !is ViewGroup) {
             return ComposeExtractedLandscapeInputView(null)
@@ -509,7 +490,6 @@ class FlorisImeService : LifecycleInputMethodService() {
         if (outInsets == null) return
 
         val inputWindowView = inputWindowView ?: return
-        // TODO: Check also if the keyboard is currently suppressed by a hardware keyboard
         if (!isInputViewShown) {
             outInsets.contentTopInsets = inputWindowView.height
             outInsets.visibleTopInsets = inputWindowView.height
@@ -538,12 +518,8 @@ class FlorisImeService : LifecycleInputMethodService() {
         outInsets.touchableRegion.set(left, top, right, bottom)
     }
 
-    /**
-     * Updates the layout params of the window and compose input view.
-     */
     private fun updateSoftInputWindowLayoutParameters() {
         val w = window?.window ?: return
-        // TODO: Verify that this doesn't give us a padding problem
         WindowCompat.setDecorFitsSystemWindows(w, false)
         ViewUtils.updateLayoutHeightOf(w, WindowManager.LayoutParams.MATCH_PARENT)
         val layoutHeight = if (isFullscreenUiMode) {
@@ -584,7 +560,6 @@ class FlorisImeService : LifecycleInputMethodService() {
             ProvideKeyboardRowBaseHeight {
                 CompositionLocalProvider(LocalInputFeedbackController provides inputFeedbackController) {
                     FlorisImeTheme {
-                        // Do not apply system bar padding here yet, we want to draw it ourselves
                         Column(modifier = Modifier.fillMaxWidth()) {
                             if (!(isFullscreenUiMode && isExtractUiShown)) {
                                 DevtoolsOverlay(
@@ -623,14 +598,10 @@ class FlorisImeService : LifecycleInputMethodService() {
                     .wrapContentHeight()
                     .onGloballyPositioned { coords -> inputViewSize = coords.size },
                 clickAndSemanticsModifier = Modifier
-                    // Do not remove below line or touch input may get stuck
                     .pointerInteropFilter { false },
                 supportsBackgroundImage = !AndroidVersion.ATLEAST_API30_R,
                 allowClip = false,
             ) {
-                // The SurfaceView is used to render the background image under inline-autofill chips. These are only
-                // available on Android >=11, and SurfaceView causes trouble on Android 8/9, thus we render the image
-                // in the SurfaceView for Android >=11, and in the Compose View Tree for Android <=10.
                 if (AndroidVersion.ATLEAST_API30_R) {
                     SnyggSurfaceView(
                         elementName = FlorisImeUi.Window.elementName,
@@ -648,7 +619,6 @@ class FlorisImeService : LifecycleInputMethodService() {
                     modifier = Modifier
                         .fillMaxWidth()
                         .wrapContentHeight()
-                        // Apply system bars padding here (we already drew our keyboard background)
                         .safeDrawingPadding()
                         .padding(bottom = bottomOffset),
                 ) {
@@ -794,15 +764,42 @@ class FlorisImeService : LifecycleInputMethodService() {
                 FlorisImeTheme {
                     val activeEditorInfo by editorInstance.activeInfoFlow.collectAsState()
                     SnyggBox(FlorisImeUi.ExtractedLandscapeInputLayout.elementName) {
-                        SnyggRow(
+                        Column(
                             modifier = Modifier.fillMaxSize(),
-                            verticalAlignment = Alignment.CenterVertically,
                         ) {
+                            // Верхняя панель: кнопка действия аккуратно прижата к правому краю
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                                horizontalArrangement = Arrangement.End,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                SnyggButton(
+                                    FlorisImeUi.ExtractedLandscapeInputAction.elementName,
+                                    onClick = {
+                                        if (activeEditorInfo.extractedActionId != 0) {
+                                            currentInputConnection?.performEditorAction(activeEditorInfo.extractedActionId)
+                                        } else {
+                                            editorInstance.performEnterAction(activeEditorInfo.imeOptions.action)
+                                        }
+                                    },
+                                ) {
+                                    SnyggText(
+                                        text = activeEditorInfo.extractedActionLabel
+                                            ?: getTextForImeAction(activeEditorInfo.imeOptions.action.toInt())
+                                            ?: "ACTION",
+                                    )
+                                }
+                            }
+
+                            // Поле ввода на ВСЮ ширину экрана и всю оставшуюся высоту
                             SnyggBox(
                                 elementName = FlorisImeUi.ExtractedLandscapeInputLayout.elementName,
                                 modifier = Modifier
-                                    .fillMaxHeight()
-                                    .weight(1f),
+                                    .fillMaxWidth()
+                                    .weight(1f)
+                                    .padding(horizontal = 8.dp, vertical = 4.dp),
                             ) {
                                 val fieldStyle = rememberSnyggThemeQuery(FlorisImeUi.ExtractedLandscapeInputField.elementName)
                                 val foreground = fieldStyle.foreground()
@@ -819,23 +816,6 @@ class FlorisImeService : LifecycleInputMethodService() {
                                             fieldStyle.fontSize(default = 16.sp).value,
                                         )
                                     },
-                                )
-                            }
-                            SnyggButton(
-                                FlorisImeUi.ExtractedLandscapeInputAction.elementName,
-                                onClick = {
-                                    if (activeEditorInfo.extractedActionId != 0) {
-                                        currentInputConnection?.performEditorAction(activeEditorInfo.extractedActionId)
-                                    } else {
-                                        editorInstance.performEnterAction(activeEditorInfo.imeOptions.action)
-                                    }
-                                },
-                                modifier = Modifier.padding(horizontal = 8.dp),
-                            ) {
-                                SnyggText(
-                                    text = activeEditorInfo.extractedActionLabel
-                                        ?: getTextForImeAction(activeEditorInfo.imeOptions.action.toInt())
-                                        ?: "ACTION",
                                 )
                             }
                         }
