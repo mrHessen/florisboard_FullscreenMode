@@ -22,7 +22,9 @@ import android.util.TypedValue
 import android.view.Gravity
 import android.widget.FrameLayout
 import android.widget.LinearLayout
-import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -56,7 +58,6 @@ import dev.patrickgold.florisboard.lib.devtools.flogError
 import org.florisboard.lib.compose.ProvideLocalizedResources
 import org.florisboard.lib.snygg.ui.SnyggBox
 import org.florisboard.lib.snygg.ui.SnyggButton
-import org.florisboard.lib.snygg.ui.SnyggRow
 import org.florisboard.lib.snygg.ui.SnyggText
 import org.florisboard.lib.snygg.ui.rememberSnyggThemeQuery
 
@@ -112,17 +113,46 @@ class ExtractedInputRootView(val ims: FlorisImeService, eet: ExtractEditText?) :
                         }
                     }
                     SnyggBox(FlorisImeUi.ExtractedLandscapeInputLayout.elementName) {
-                        SnyggRow(
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(height),
-                            verticalAlignment = Alignment.CenterVertically,
                         ) {
+                            // Верхняя компактная панель: кнопка действия аккуратно прижата вправо
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                                horizontalArrangement = Arrangement.End,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                SnyggButton(
+                                    FlorisImeUi.ExtractedLandscapeInputAction.elementName,
+                                    onClick = {
+                                        ims.imeController.updateStateBlocking {
+                                            if (editorInfo.extractedActionId != 0) {
+                                                state.editor.ic.get()?.performEditorAction(editorInfo.extractedActionId)
+                                            } else {
+                                                state.editor.performEditorAction(editorInfo.imeOptions.action)
+                                            }
+                                        }
+                                    },
+                                ) {
+                                    SnyggText(
+                                        text = editorInfo.extractedActionLabel
+                                            ?: ims.getTextForImeAction(editorInfo.imeOptions.action.toInt())
+                                            ?: "ACTION",
+                                    )
+                                }
+                            }
+
+                            // Поле ввода на ВСЮ ширину экрана и всю оставшуюся высоту
                             SnyggBox(
                                 elementName = FlorisImeUi.ExtractedLandscapeInputLayout.elementName,
                                 modifier = Modifier
-                                    .fillMaxHeight()
-                                    .weight(1f),
+                                    .fillMaxWidth()
+                                    .weight(1f)
+                                    .padding(horizontal = 8.dp, vertical = 4.dp),
                             ) {
                                 val fieldStyle =
                                     rememberSnyggThemeQuery(FlorisImeUi.ExtractedLandscapeInputField.elementName)
@@ -140,25 +170,6 @@ class ExtractedInputRootView(val ims: FlorisImeService, eet: ExtractEditText?) :
                                             fieldStyle.fontSize(default = 16.sp).value,
                                         )
                                     },
-                                )
-                            }
-                            SnyggButton(
-                                FlorisImeUi.ExtractedLandscapeInputAction.elementName,
-                                onClick = {
-                                    ims.imeController.updateStateBlocking {
-                                        if (editorInfo.extractedActionId != 0) {
-                                            state.editor.ic.get()?.performEditorAction(editorInfo.extractedActionId)
-                                        } else {
-                                            state.editor.performEditorAction(editorInfo.imeOptions.action)
-                                        }
-                                    }
-                                },
-                                modifier = Modifier.padding(horizontal = 8.dp),
-                            ) {
-                                SnyggText(
-                                    text = editorInfo.extractedActionLabel
-                                        ?: ims.getTextForImeAction(editorInfo.imeOptions.action.toInt())
-                                        ?: "ACTION",
                                 )
                             }
                         }
