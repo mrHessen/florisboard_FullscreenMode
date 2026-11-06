@@ -45,8 +45,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.wrapContentHeight
@@ -125,7 +125,6 @@ import org.florisboard.lib.compose.ProvideLocalizedResources
 import org.florisboard.lib.kotlin.collectIn
 import org.florisboard.lib.snygg.ui.SnyggBox
 import org.florisboard.lib.snygg.ui.SnyggButton
-import org.florisboard.lib.snygg.ui.SnyggRow
 import org.florisboard.lib.snygg.ui.SnyggSurfaceView
 import org.florisboard.lib.snygg.ui.SnyggText
 import org.florisboard.lib.snygg.ui.rememberSnyggThemeQuery
@@ -489,6 +488,14 @@ class FlorisImeService : LifecycleInputMethodService() {
         super.onComputeInsets(outInsets)
         if (outInsets == null) return
 
+        if (isFullscreenUiMode) {
+            outInsets.contentTopInsets = 0
+            outInsets.visibleTopInsets = 0
+            outInsets.touchableInsets = Insets.TOUCHABLE_INSETS_FRAME
+            outInsets.touchableRegion.setEmpty()
+            return
+        }
+
         val inputWindowView = inputWindowView ?: return
         if (!isInputViewShown) {
             outInsets.contentTopInsets = inputWindowView.height
@@ -750,7 +757,10 @@ class FlorisImeService : LifecycleInputMethodService() {
             }
             addView(extractEditText)
 
-            composeView = ComposeView(context).also { it.setContent { Content() } }
+            composeView = ComposeView(context).also {
+                it.layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
+                it.setContent { Content() }
+            }
             addView(composeView)
         }
 
@@ -763,11 +773,17 @@ class FlorisImeService : LifecycleInputMethodService() {
             ) {
                 FlorisImeTheme {
                     val activeEditorInfo by editorInstance.activeInfoFlow.collectAsState()
+                    val configuration = LocalConfiguration.current
+                    val screenHeight = configuration.screenHeightDp.dp
+                    val keyboardHeight = FlorisImeSizing.imeUiHeight()
+                    val extractHeight = (screenHeight - keyboardHeight).coerceAtLeast(150.dp)
+
                     SnyggBox(FlorisImeUi.ExtractedLandscapeInputLayout.elementName) {
                         Column(
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(extractHeight),
                         ) {
-                            // Верхняя панель: кнопка действия аккуратно прижата к правому краю
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -793,7 +809,6 @@ class FlorisImeService : LifecycleInputMethodService() {
                                 }
                             }
 
-                            // Поле ввода на ВСЮ ширину экрана и всю оставшуюся высоту
                             SnyggBox(
                                 elementName = FlorisImeUi.ExtractedLandscapeInputLayout.elementName,
                                 modifier = Modifier
